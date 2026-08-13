@@ -1,3 +1,19 @@
-// ${dir} schema
+import { z } from "zod";
 
-// Define ${dir} request/response schemas here
+export const createSection = z.object({
+  name: z.string().min(1),
+  boardId: z.int().positive(),
+});
+
+export const readSection = z.object({
+  boardid: z.int().positive(),
+});
+
+export const updateSection = z.object({
+  sectionid: z.int().positive(),
+  name: z.string(),
+});
+
+export const deleteSection = z.object({
+  sectionid: z.int().positive(),
+});

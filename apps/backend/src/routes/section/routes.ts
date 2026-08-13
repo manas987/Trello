@@ -1,17 +1,18 @@
 import { Router } from "express";
 import {
-  createService,
-  deleteService,
-  readService,
-  updateService,
-} from "./service";
+  createController,
+  deleteController,
+  readController,
+  updateController,
+} from "./controllers";
+import { authMiddleware } from "../../middleware/auth";
 
 export const sectionRouter = Router();
 
-sectionRouter.post("/create", createService);
+sectionRouter.post("/create", authMiddleware, createController);
 
-sectionRouter.get("/read", readService);
+sectionRouter.get("/read", authMiddleware, readController);
 
-sectionRouter.patch("/update", updateService);
+sectionRouter.patch("/update", authMiddleware, updateController);
 
-sectionRouter.delete("/delete", deleteService);
+sectionRouter.delete("/delete", authMiddleware, deleteController);
