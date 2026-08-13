@@ -11,7 +11,7 @@ export const readSection = z.object({
 
 export const updateSection = z.object({
   sectionid: z.int().positive(),
-  name: z.string(),
+  name: z.string().min(1),
 });
 
 export const deleteSection = z.object({
