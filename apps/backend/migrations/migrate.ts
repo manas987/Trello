@@ -32,16 +32,25 @@ async function migrate() {
 
     const sql = await fs.readFile(path.join(migrationDir, file), "utf8");
 
-    await pool.query("BEGIN");
+    const client = await pool.connect();
 
     try {
-      await pool.query(sql);
-      await pool.query("INSERT INTO migrations (filename) VALUES ($1)", [file]);
-      await pool.query("COMMIT");
+      await client.query("BEGIN");
+
+      await client.query(sql);
+
+      await client.query("INSERT INTO migrations (filename) VALUES ($1)", [
+        file,
+      ]);
+
+      await client.query("COMMIT");
     } catch (err) {
-      await pool.query("ROLLBACK");
+      await client.query("ROLLBACK");
+
       console.error(err);
       throw err;
+    } finally {
+      client.release();
     }
   }
 
