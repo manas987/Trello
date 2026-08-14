@@ -1,6 +1,12 @@
 import type { RequestHandler } from "express";
 import { pool } from "../../../migrations/db";
-import { createIssue, deleteIssue, readIssue, updateIssue } from "./schema";
+import {
+  createIssue,
+  deleteIssue,
+  moveIssue,
+  readIssue,
+  updateIssue,
+} from "./schema";
 import { sectionRouter } from "../section/routes";
 
 export const createController: RequestHandler = async (request, response) => {
@@ -163,6 +169,105 @@ export const updateController: RequestHandler = async (request, response) => {
     return response.status(500).json({ error: "internal server error" });
   }
 };
+
+export const moveController: RequestHandler = async (request, response) => {
+  const checkInput = moveIssue.safeParse(request.body);
+  const userid = response.locals.userid;
+
+  if (!checkInput.success) {
+    return response.status(400).json({ error: "invalid name or description" });
+  }
+
+  const { newSectionId, issueId } = checkInput.data;
+
+  try {
+    const userOrg = await pool.query(
+      `
+      SELECT
+        role
+      FROM
+        issues
+      JOIN
+        sections
+      ON
+        issues.sectionId=sections.id
+      JOIN
+        boards
+      ON 
+        boards.id=sections.boardId
+      JOIN
+        membership
+      ON
+        boards.orginisationId=membership.org_id
+      WHERE
+        membership.user_id=$1 and issues.id=$2
+      `,
+      [userid, issueId],
+    );
+
+    if (!userOrg.rowCount || userOrg.rows[0].role != "admin")
+      return response.status(403).json({ error: "no permission" });
+
+    const issueSections = await pool.query(
+      `
+      SELECT
+        current_section.boardId AS current_board,
+        new_section.boardId AS new_board,
+        issues.sectionId AS current_section
+      FROM 
+        issues
+      JOIN 
+        sections AS current_section
+      ON 
+        issues.sectionId = current_section.id
+      JOIN 
+        sections AS new_section
+      ON 
+        new_section.id = $1
+      WHERE 
+        issues.id = $2
+  `,
+      [newSectionId, issueId],
+    );
+
+    const row = issueSections.rows[0];
+
+    if (!row) {
+      return response.status(404).json({
+        error: "issue or section not found",
+      });
+    }
+
+    if (row.current_board !== row.new_board) {
+      return response.status(403).json({
+        error: "cannot move issue to another board",
+      });
+    }
+
+    if (row.current_section === newSectionId) {
+      return response.status(400).json({
+        error: "issue is already in this section",
+      });
+    }
+    await pool.query(
+      `
+      UPDATE 
+        issues
+      SET 
+        sectionId = $1
+      WHERE 
+        id = $2
+      `,
+      [newSectionId, issueId],
+    );
+
+    return response.status(200).json({ message: "issue Moved" });
+  } catch (error) {
+    console.log(error);
+    return response.status(500).json({ error: "internal server error" });
+  }
+};
+
 export const deleteController: RequestHandler = async (request, response) => {
   const checkInput = deleteIssue.safeParse(request.body);
   const userid = response.locals.userid;

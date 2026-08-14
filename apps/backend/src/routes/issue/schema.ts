@@ -18,6 +18,11 @@ export const updateIssue = z
   })
   .refine((data) => data.name !== undefined || data.description !== undefined);
 
+export const moveIssue = z.object({
+  newSectionId: z.int().positive(),
+  issueId: z.int().positive(),
+});
+
 export const deleteIssue = z.object({
   Issueid: z.int().positive(),
 });
