@@ -7,54 +7,106 @@ import {
   readIssue,
   updateIssue,
 } from "./schema";
-import { sectionRouter } from "../section/routes";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createIssue.safeParse(request.body);
-  const userid = response.locals.userid;
+  const userId = response.locals.userid;
 
   if (!checkInput.success) {
-    return response.status(400).json({ error: "invalid name or description" });
+    return response.status(400).json({
+      error: "invalid name, description, section id, or assignees",
+    });
   }
 
-  const { name, description, sectionId } = checkInput.data;
+  const { name, description, sectionId, assignees } = checkInput.data;
+
+  const client = await pool.connect();
 
   try {
-    const userOrg = await pool.query(
+    await client.query("BEGIN");
+
+    const userOrg = await client.query(
       `
       SELECT
-        role
-      FROM
-        sections
-      JOIN
-        boards
-      ON 
-        boards.id=sections.boardId
-      JOIN
-        membership
-      ON
-        boards.orginisationId=membership.org_id
-      WHERE
-        membership.user_id=$1 and sections.id=$2
+        boards.orginisationId
+      FROM sections
+      JOIN boards
+        ON boards.id = sections.boardId
+      JOIN membership
+        ON boards.orginisationId = membership.org_id
+      WHERE membership.user_id = $1
+        AND sections.id = $2
+        AND membership.role = 'admin'
       `,
-      [userid, sectionId],
+      [userId, sectionId],
     );
 
-    if (!userOrg.rowCount || userOrg.rows[0].role != "admin")
-      return response.status(403).json({ error: "no permission" });
+    if (!userOrg.rowCount) {
+      await client.query("ROLLBACK");
 
-    await pool.query(
+      return response.status(403).json({
+        error: "no permission",
+      });
+    }
+
+    const orgId = userOrg.rows[0].orginisationid;
+
+    if (assignees?.length) {
+      const validAssignees = await client.query(
+        `
+        SELECT user_id
+        FROM membership
+        WHERE org_id = $1
+          AND user_id = ANY($2::int[])
+        `,
+        [orgId, assignees],
+      );
+
+      if (validAssignees.rowCount !== assignees.length) {
+        await client.query("ROLLBACK");
+
+        return response.status(400).json({
+          error: "one or more assignees are not members of the organization",
+        });
+      }
+    }
+
+    const issue = await client.query(
       `
-      INSERT INTO issues (title,description,sectionId)
-      VALUES ($1,$2,$3)
+      INSERT INTO issues (title, description, sectionId)
+      VALUES ($1, $2, $3)
+      RETURNING id
       `,
       [name, description, sectionId],
     );
 
-    return response.status(201).json({ message: "issue created" });
+    const issueId = issue.rows[0].id;
+
+    if (assignees?.length) {
+      await client.query(
+        `
+        INSERT INTO issues_mapping (userid, issueid)
+        SELECT unnest($1::int[]), $2
+        `,
+        [assignees, issueId],
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return response.status(201).json({
+      message: "issue created",
+    });
   } catch (error) {
-    console.log(error);
-    return response.status(500).json({ error: "internal server error" });
+    await client.query("ROLLBACK");
+
+    console.error(error);
+
+    return response.status(500).json({
+      error: "internal server error",
+    });
+  } finally {
+    client.release();
   }
 };
 
@@ -77,29 +129,53 @@ export const readController: RequestHandler = async (request, response) => {
         sections
       JOIN
         boards
-      ON 
-        boards.id=sections.boardId
+      ON
+        boards.id = sections.boardId
       JOIN
         membership
       ON
-        boards.orginisationId=membership.org_id
+        boards.orginisationId = membership.org_id
       WHERE
-        membership.user_id=$1 and sections.id=$2
+        membership.user_id = $1
+        AND sections.id = $2
       `,
       [userid, sectionid],
     );
 
-    if (!userOrg.rowCount)
+    if (!userOrg.rowCount) {
       return response.status(403).json({ error: "no permission" });
+    }
 
     const issues = await pool.query(
       `
       SELECT
-        *
+        issues.id,
+        issues.title,
+        issues.description,
+        issues.sectionId,
+        COALESCE(
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', users.id,
+              'email', users.email
+            )
+          ) FILTER (WHERE users.id IS NOT NULL),
+          '[]'
+        ) AS assignees
       FROM
         issues
+      LEFT JOIN
+        issues_mapping
+      ON
+        issues_mapping.issueid = issues.id
+      LEFT JOIN
+        users
+      ON
+        users.id = issues_mapping.userid
       WHERE
-        sectionId = $1
+        issues.sectionId = $1
+      GROUP BY
+        issues.id
       `,
       [sectionid],
     );
@@ -109,7 +185,9 @@ export const readController: RequestHandler = async (request, response) => {
     });
   } catch (error) {
     console.log(error);
-    return response.status(500).json({ error: "internal server error" });
+    return response.status(500).json({
+      error: "internal server error",
+    });
   }
 };
 
@@ -118,55 +196,130 @@ export const updateController: RequestHandler = async (request, response) => {
   const userid = response.locals.userid;
 
   if (!checkInput.success) {
-    return response.status(400).json({ error: "invalid name or description" });
+    return response.status(400).json({
+      error: "invalid name, description, or assignees",
+    });
   }
 
-  const { Issueid, name, description } = checkInput.data;
+  const { Issueid, name, description, assignees } = checkInput.data;
 
   try {
     const userOrg = await pool.query(
       `
       SELECT
-        role
+        membership.role,
+        membership.org_id
       FROM
         issues
       JOIN
         sections
       ON
-        issues.sectionId=sections.id
+        issues.sectionId = sections.id
       JOIN
         boards
-      ON 
-        boards.id=sections.boardId
+      ON
+        boards.id = sections.boardId
       JOIN
         membership
       ON
-        boards.orginisationId=membership.org_id
+        boards.orginisationId = membership.org_id
       WHERE
-        membership.user_id=$1 and issues.id=$2
+        membership.user_id = $1
+        AND issues.id = $2
       `,
       [userid, Issueid],
     );
 
-    if (!userOrg.rowCount || userOrg.rows[0].role != "admin")
-      return response.status(403).json({ error: "no permission" });
+    if (!userOrg.rowCount || userOrg.rows[0].role !== "admin") {
+      return response.status(403).json({
+        error: "no permission",
+      });
+    }
 
-    await pool.query(
-      `
-      UPDATE issues
-      SET
-        title=COALESCE($1,title),
-        description=COALESCE($2,description)
-      WHERE 
-        id=$3
-      `,
-      [name, description, Issueid],
-    );
+    const orgId = userOrg.rows[0].org_id;
 
-    return response.status(200).json({ message: "issue Updated" });
+    if (assignees !== undefined) {
+      const validAssignees = await pool.query(
+        `
+        SELECT
+          user_id
+        FROM
+          membership
+        WHERE
+          org_id = $1
+          AND user_id = ANY($2::int[])
+        `,
+        [orgId, assignees],
+      );
+
+      if (validAssignees.rowCount !== assignees.length) {
+        return response.status(400).json({
+          error: "one or more assignees are not members of the organization",
+        });
+      }
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `
+        UPDATE issues
+        SET
+          title = COALESCE($1, title),
+          description = COALESCE($2, description)
+        WHERE
+          id = $3
+        `,
+        [name, description, Issueid],
+      );
+
+      if (assignees !== undefined) {
+        await client.query(
+          `
+          DELETE FROM issues_mapping
+          WHERE issueid = $1
+          `,
+          [Issueid],
+        );
+
+        if (assignees.length > 0) {
+          await client.query(
+            `
+            INSERT INTO issues_mapping (userid, issueid)
+            SELECT
+              user_id,
+              $1
+            FROM
+              membership
+            WHERE
+              org_id = $2
+              AND user_id = ANY($3::int[])
+            `,
+            [Issueid, orgId, assignees],
+          );
+        }
+      }
+
+      await client.query("COMMIT");
+
+      return response.status(200).json({
+        message: "issue updated",
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.log(error);
-    return response.status(500).json({ error: "internal server error" });
+
+    return response.status(500).json({
+      error: "internal server error",
+    });
   }
 };
 

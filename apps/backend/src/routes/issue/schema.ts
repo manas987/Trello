@@ -4,6 +4,7 @@ export const createIssue = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   sectionId: z.int().positive(),
+  assignees: z.array(z.int().positive()).optional(),
 });
 
 export const readIssue = z.object({
@@ -15,8 +16,14 @@ export const updateIssue = z
     Issueid: z.int().positive(),
     name: z.string().min(1).optional(),
     description: z.string().optional(),
+    assignees: z.array(z.int().positive()).optional(),
   })
-  .refine((data) => data.name !== undefined || data.description !== undefined);
+  .refine(
+    (data) =>
+      data.name !== undefined ||
+      data.description !== undefined ||
+      data.assignees !== undefined,
+  );
 
 export const moveIssue = z.object({
   newSectionId: z.int().positive(),
