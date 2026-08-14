@@ -1,17 +1,17 @@
 import { Router } from "express";
 import {
-  createService,
-  deleteService,
-  readService,
-  updateService,
-} from "./service";
+  createController,
+  deleteController,
+  readController,
+  updateController,
+} from "./controllers";
 
 export const commentRouter = Router();
 
-commentRouter.post("/create", createService);
+commentRouter.post("/create", createController);
 
-commentRouter.get("/read", readService);
+commentRouter.get("/read", readController);
 
-commentRouter.patch("/update", updateService);
+commentRouter.patch("/update", updateController);
 
-commentRouter.delete("/delete", deleteService);
+commentRouter.delete("/delete", deleteController);
