@@ -1,17 +1,9 @@
 import { Router } from "express";
-import {
-  createService,
-  deleteService,
-  readService,
-  updateService,
-} from "./service";
+import { leaveController, readController } from "./controller";
+import { authMiddleware } from "../../middleware/auth";
 
 export const membershipRouter = Router();
 
-membershipRouter.post("/create", createService);
+membershipRouter.get("/read", authMiddleware, readController);
 
-membershipRouter.get("/read", readService);
-
-membershipRouter.patch("/update", updateService);
-
-membershipRouter.delete("/delete", deleteService);
+membershipRouter.delete("/delete", authMiddleware, leaveController);

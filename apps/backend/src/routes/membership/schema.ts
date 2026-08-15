@@ -1,3 +1,5 @@
-// ${dir} schema
+import { z } from "zod";
 
-// Define ${dir} request/response schemas here
+export const leaveMembership = z.object({
+  orgId: z.int().positive(),
+});
