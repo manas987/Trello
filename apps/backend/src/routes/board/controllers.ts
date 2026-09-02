@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { createBoard, deleteBoard, readBoard, updateBoard } from "./schema";
 import { pool } from "../../../migrations/db";
+import { broadcastToOrg } from "../../websocket/rooms/roomManager";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createBoard.safeParse(request.body);
@@ -34,6 +35,10 @@ export const createController: RequestHandler = async (request, response) => {
       VALUES ($1,$2)
       `,
       [name, organizationId],
+    );
+    broadcastToOrg(
+      organizationId,
+      JSON.stringify({ event: "board:updated", organizationId }),
     );
 
     return response.status(201).json({
@@ -107,7 +112,7 @@ export const updateController: RequestHandler = async (request, response) => {
     const userOrg = await pool.query(
       `
       SELECT
-       membership.role
+       membership.role , orgs.id
       FROM 
         boards
       JOIN
@@ -138,6 +143,14 @@ export const updateController: RequestHandler = async (request, response) => {
       [name, boardid],
     );
 
+    broadcastToOrg(
+      userOrg.rows[0].id,
+      JSON.stringify({
+        event: "board:updated",
+        organizationId: userOrg.rows[0].id,
+      }),
+    );
+
     return response.status(200).json({ message: "board updated" });
   } catch (error) {
     console.log(error);
@@ -159,7 +172,7 @@ export const deleteController: RequestHandler = async (request, response) => {
     const userOrg = await pool.query(
       `
       SELECT
-       membership.role
+       membership.role , orgs.id
       FROM 
         boards
       JOIN
@@ -188,6 +201,14 @@ export const deleteController: RequestHandler = async (request, response) => {
         id=$1
       `,
       [boardid],
+    );
+
+    broadcastToOrg(
+      userOrg.rows[0].id,
+      JSON.stringify({
+        event: "board:updated",
+        organizationId: userOrg.rows[0].id,
+      }),
     );
 
     return response.status(200).json({ message: "board deleted" });
