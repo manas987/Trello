@@ -6,6 +6,7 @@ import {
   readComment,
   updateComment,
 } from "./schema";
+import { broadcastToBoard } from "../../websocket/rooms/roomManager";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createComment.safeParse(request.body);
@@ -22,7 +23,7 @@ export const createController: RequestHandler = async (request, response) => {
   try {
     const userIssue = await pool.query(
       `
-      SELECT 1
+      SELECT boards.id
       FROM issues
       JOIN sections
         ON issues.sectionId = sections.id
@@ -48,6 +49,14 @@ export const createController: RequestHandler = async (request, response) => {
       VALUES ($1, $2, $3)
       `,
       [issueId, comment, userId],
+    );
+
+    broadcastToBoard(
+      userIssue.rows[0].id,
+      JSON.stringify({
+        event: "comment:updated",
+        issueId,
+      }),
     );
 
     return response.status(201).json({
@@ -139,7 +148,9 @@ export const updateController: RequestHandler = async (request, response) => {
       `
       SELECT
         comments.userId AS comment_user_id,
-        membership.role
+        membership.role,
+        boards.id AS board_id,
+        issues.id AS issue_id
       FROM comments
       JOIN issues
         ON issues.id = comments.issueId
@@ -178,6 +189,14 @@ export const updateController: RequestHandler = async (request, response) => {
       [comment, commentId],
     );
 
+    broadcastToBoard(
+      permission.rows[0].board_id,
+      JSON.stringify({
+        event: "comment:updated",
+        issueId: permission.rows[0].issue_id,
+      }),
+    );
+
     return response.status(200).json({
       message: "comment updated",
     });
@@ -207,7 +226,9 @@ export const deleteController: RequestHandler = async (request, response) => {
       `
       SELECT
         comments.userId AS comment_user_id,
-        membership.role
+        membership.role,
+        boards.id AS board_id,
+        issues.id AS issue_id
       FROM comments
       JOIN issues
         ON issues.id = comments.issueId
@@ -243,6 +264,14 @@ export const deleteController: RequestHandler = async (request, response) => {
       WHERE id = $1
       `,
       [commentId],
+    );
+
+    broadcastToBoard(
+      permission.rows[0].board_id,
+      JSON.stringify({
+        event: "comment:updated",
+        issueId: permission.rows[0].issue_id,
+      }),
     );
 
     return response.status(200).json({
