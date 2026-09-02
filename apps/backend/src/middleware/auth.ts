@@ -2,16 +2,14 @@ import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import { pool } from "../../migrations/db";
+import type { IncomingMessage } from "http";
+import type { WebSocket } from "ws";
 
-export const authMiddleware: RequestHandler = async (
-  request,
-  response,
-  nextfunction,
-) => {
+async function auth(request: IncomingMessage): Promise<number | null> {
   const token = request.headers.authorization;
 
   if (!token) {
-    return response.status(401).json({ error: "Token not found" });
+    return null;
   }
 
   try {
@@ -19,22 +17,53 @@ export const authMiddleware: RequestHandler = async (
       userId: number;
     };
 
-    try {
-      const userexists = await pool.query("SELECT id FROM users WHERE id=$1", [
-        verify.userId,
-      ]);
+    const user = await pool.query(
+      `
+      SELECT id
+      FROM users
+      WHERE id = $1
+      `,
+      [verify.userId],
+    );
 
-      if (!userexists.rowCount)
-        return response.status(401).json({ error: "user no longer exists" });
-    } catch (error) {
-      console.error(error);
-      return response.status(500).json({ error: "internal server error" });
+    if (!user.rowCount) {
+      return null;
     }
 
-    response.locals.userid = verify.userId;
-
-    nextfunction();
+    return verify.userId;
   } catch {
-    return response.status(401).json({ error: "Invalid Token" });
+    return null;
   }
+}
+
+export async function authWs(
+  ws: WebSocket,
+  request: IncomingMessage,
+): Promise<number> {
+  const userId = await auth(request);
+
+  if (!userId) {
+    ws.close(1008, "Unauthorized");
+    throw new Error("Unauthorized");
+  }
+
+  return userId;
+}
+
+export const authMiddleware: RequestHandler = async (
+  request,
+  response,
+  nextfunction,
+) => {
+  const userId = await auth(request);
+
+  if (!userId) {
+    return response.status(401).json({
+      error: "Invalid token",
+    });
+  }
+
+  response.locals.userid = userId;
+
+  nextfunction();
 };
