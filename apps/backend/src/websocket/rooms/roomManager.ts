@@ -17,6 +17,7 @@ const socketState = new Map<
   WebSocket,
   {
     userId: number;
+    email: string;
     orgs: number | null;
     adminOrgs: number | null;
     boards: number | null;
@@ -51,11 +52,7 @@ export function leaveOrgAdmins(ws: WebSocket) {
   if (temp) temp.adminOrgs = null;
 }
 
-export async function joinOrg(
-  orgId: number,
-  ws: WebSocket,
-  userId: number,
-) {
+export async function joinOrg(orgId: number, ws: WebSocket, userId: number) {
   const role = await pool.query(
     `
     SELECT role
@@ -116,22 +113,54 @@ export function joinBoard(boardId: number, ws: WebSocket) {
   }
 
   boards.get(boardId)?.add(ws);
+
+  const liveUsers = boards.get(boardId);
+
+  if (!liveUsers) return;
+
+  const members = [...liveUsers].map((socket) => {
+    const user = socketState.get(socket)!;
+
+    return { email: user.email };
+  });
+  broadcastToBoard(
+    boardId,
+    JSON.stringify({
+      event: "liveMembers:changed",
+      members,
+    }),
+  );
 }
 
 export function leaveBoard(ws: WebSocket) {
   const temp = socketState.get(ws);
 
   if (temp?.boards !== null && temp?.boards !== undefined) {
-    const sockets = boards.get(temp.boards);
+    const sockets = boards.get(temp.boards)!;
 
     sockets?.delete(ws);
 
     if (sockets?.size === 0) {
       boards.delete(temp.boards);
+      temp.boards = null;
+      return;
     }
-  }
 
-  if (temp) temp.boards = null;
+    const members = [...sockets].map((socket) => {
+      const user = socketState.get(socket)!;
+
+      return { email: user.email };
+    });
+    broadcastToBoard(
+      temp.boards,
+      JSON.stringify({
+        event: "liveMembers:changed",
+        members,
+      }),
+    );
+
+    temp.boards = null;
+  }
 }
 
 export function broadcastToOrg(orgId: number, message: string) {
@@ -164,15 +193,28 @@ export function broadcastToBoard(boardId: number, message: string) {
   }
 }
 
-export function addUserSocket(userId: number, ws: WebSocket) {
+export async function addUserSocket(userId: number, ws: WebSocket) {
   if (!users.has(userId)) {
     users.set(userId, new Set());
   }
 
   users.get(userId)?.add(ws);
 
+  const email = await pool.query(
+    `
+    SELECT
+     email
+    FROM 
+     users
+    WHERE
+     id=$1
+    `,
+    [userId],
+  );
+
   socketState.set(ws, {
     userId,
+    email: email.rows[0].email,
     orgs: null,
     adminOrgs: null,
     boards: null,
@@ -205,12 +247,27 @@ export function removeSocket(ws: WebSocket) {
   if (!temp) return;
 
   if (temp.boards !== null) {
-    const sockets = boards.get(temp.boards);
+    const sockets = boards.get(temp.boards)!;
+    const board = temp.boards;
 
     sockets?.delete(ws);
 
     if (sockets?.size === 0) {
       boards.delete(temp.boards);
+    } else {
+      const members = [...sockets].map((socket) => {
+        const user = socketState.get(socket)!;
+
+        return { email: user.email };
+      });
+
+      broadcastToBoard(
+        board,
+        JSON.stringify({
+          event: "liveMembers:changed",
+          members,
+        }),
+      );
     }
   }
 

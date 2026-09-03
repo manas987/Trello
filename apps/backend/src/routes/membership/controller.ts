@@ -87,8 +87,6 @@ export const changeRoleController: RequestHandler = async (
   try {
     await client.query("BEGIN");
 
-    // Lock all memberships for this organization.
-    // This prevents concurrent membership changes from
     // removing the final admin.
     await client.query(
       `
