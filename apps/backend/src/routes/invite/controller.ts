@@ -74,6 +74,24 @@ export const createController: RequestHandler = async (request, response) => {
       });
     }
 
+    const existingInvites = await pool.query(
+      `
+      SELECT
+       1
+      FROM
+       invites
+      WHERE
+       org_id=$1,user_id=$2
+      `,
+      [orgid, userId],
+    );
+
+    if (existingInvites.rowCount) {
+      return response.status(400).json({
+        error: "invite alredy exists",
+      });
+    }
+
     await pool.query(
       `
       INSERT INTO invites (org_id, user_id, role)
