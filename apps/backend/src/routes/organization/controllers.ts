@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { createOrg, deleteOrg, updateOrg } from "./schema";
 import { pool } from "../../../migrations/db";
+import { broadcastToOrg } from "../../websocket/rooms/roomManager";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createOrg.safeParse(request.body);
@@ -117,6 +118,13 @@ export const updateController: RequestHandler = async (request, response) => {
       `,
       [name, description, orgid],
     );
+    
+    broadcastToOrg(
+      orgid,
+      JSON.stringify({
+        event: "org:changed",
+      }),
+    );
 
     return response.status(200).json({ message: "org updated" });
   } catch (error) {
@@ -157,6 +165,14 @@ export const deleteController: RequestHandler = async (request, response) => {
       WHERE id=$1
       `,
       [orgid],
+    );
+
+    broadcastToOrg(
+      orgid,
+      JSON.stringify({
+        event: "org:updated",
+        orgId: orgid,
+      }),
     );
 
     return response.status(200).json({

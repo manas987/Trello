@@ -6,6 +6,7 @@ import {
   updateSection,
 } from "./schema";
 import { pool } from "../../../migrations/db";
+import { broadcastToBoard } from "../../websocket/rooms/roomManager";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createSection.safeParse(request.body);
@@ -43,6 +44,14 @@ export const createController: RequestHandler = async (request, response) => {
       VALUES ($1,$2)
       `,
       [name, boardId],
+    );
+
+    broadcastToBoard(
+      boardId,
+      JSON.stringify({
+        event: "section:changed",
+        boardId,
+      }),
     );
 
     return response.status(201).json({
@@ -120,7 +129,8 @@ export const updateController: RequestHandler = async (request, response) => {
     const userOrg = await pool.query(
       `
       SELECT
-       membership.role
+        membership.role,
+        boards.id AS board_id
       FROM 
         sections
       JOIN
@@ -151,6 +161,14 @@ export const updateController: RequestHandler = async (request, response) => {
       [name, sectionid],
     );
 
+    broadcastToBoard(
+      userOrg.rows[0].board_id,
+      JSON.stringify({
+        event: "section:updated",
+        boardId: userOrg.rows[0].board_id,
+      }),
+    );
+
     return response.status(200).json({ message: "section updated" });
   } catch (error) {
     console.log(error);
@@ -172,7 +190,8 @@ export const deleteController: RequestHandler = async (request, response) => {
     const userOrg = await pool.query(
       `
       SELECT
-       membership.role
+       membership.role,
+       boards.id AS board_id
       FROM 
         sections
       JOIN
@@ -201,6 +220,14 @@ export const deleteController: RequestHandler = async (request, response) => {
         id=$1
       `,
       [sectionid],
+    );
+
+    broadcastToBoard(
+      userOrg.rows[0].board_id,
+      JSON.stringify({
+        event: "section:updated",
+        boardId: userOrg.rows[0].board_id,
+      }),
     );
 
     return response.status(200).json({ message: "section deleted" });

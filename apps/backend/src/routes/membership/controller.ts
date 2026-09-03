@@ -1,33 +1,58 @@
 import type { RequestHandler } from "express";
-import { leaveMembership } from "./schema";
+import { kickMembership, leaveMembership, readMembership } from "./schema";
 import { pool } from "../../../migrations/db";
-import { broadcastToOrgAdmins } from "../../websocket/rooms/roomManager";
+import { broadcastToOrgAdmins, sendToUser } from "../../websocket/rooms/roomManager";
 
 export const readController: RequestHandler = async (request, response) => {
-  const userid = response.locals.userid;
+  const checkInput = readMembership.safeParse(request.body);
+  const userId = response.locals.userid;
+
+  if (!checkInput.success) {
+    return response.status(400).json({
+      error: "invalid organization id",
+    });
+  }
+
+  const { orgid } = checkInput.data;
 
   try {
-    const memberships = await pool.query(
+    const membership = await pool.query(
       `
-        SELECT
-          orgs.id,
-          orgs.name,
-          orgs.description
-        FROM
-          membership
-        JOIN
-          orgs
-        ON
-          membership.org_id=orgs.id
-        WHERE
-          user_id=$1
-        `,
-      [userid],
+      SELECT 1
+      FROM membership
+      WHERE user_id = $1
+        AND org_id = $2
+      `,
+      [userId, orgid],
     );
 
-    return response.status(200).json({ memberships: memberships.rows });
+    if (!membership.rowCount) {
+      return response.status(403).json({
+        error: "no permission",
+      });
+    }
+
+    const members = await pool.query(
+      `
+      SELECT
+        users.id,
+        users.email,
+        membership.role
+      FROM membership
+      JOIN users
+        ON users.id = membership.user_id
+      WHERE membership.org_id = $1
+      ORDER BY users.id
+      `,
+      [orgid],
+    );
+
+    return response.status(200).json({
+      members: members.rows,
+    });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     return response.status(500).json({
       error: "server error",
     });
@@ -35,71 +60,129 @@ export const readController: RequestHandler = async (request, response) => {
 };
 
 export const kickController: RequestHandler = async (request, response) => {
-  const checkInput = leaveMembership.safeParse(request.body);
-  const userid = response.locals.userid;
+  const checkInput = kickMembership.safeParse(request.body);
+  const userId = response.locals.userid;
 
   if (!checkInput.success) {
-    return response.status(400).json({ error: "invalid name or description" });
+    return response.status(400).json({
+      error: "invalid organization or user id",
+    });
   }
 
-  const { orgId } = checkInput.data;
+  const { orgId, userId: targetUserId } = checkInput.data;
 
   try {
-    await pool.query(
+    const admin = await pool.query(
       `
-        DELETE
-        FROM
-         membership
-        WHERE
-        user_id=$1 and org_id=$2
-        `,
-      [userid, orgId],
+      SELECT 1
+      FROM membership
+      WHERE user_id = $1
+        AND org_id = $2
+        AND role = 'admin'
+      `,
+      [userId, orgId],
     );
+
+    if (!admin.rowCount) {
+      return response.status(403).json({
+        error: "no permission",
+      });
+    }
+
+    const kicked = await pool.query(
+      `
+      DELETE FROM membership
+      WHERE user_id = $1
+        AND org_id = $2
+      `,
+      [targetUserId, orgId],
+    );
+
+    if (!kicked.rowCount) {
+      return response.status(404).json({
+        error: "user is not a member of this organization",
+      });
+    }
 
     broadcastToOrgAdmins(
       orgId,
-      JSON.stringify({ event: "membership:updated" }),
+      JSON.stringify({
+        event: "membership:updated",
+      }),
     );
 
-    return response.status(200).json({ message: "left the org" });
+    sendToUser(
+      targetUserId,
+      JSON.stringify({
+        event: "membership:removed",
+        orgId,
+      }),
+    );
+
+    return response.status(200).json({
+      message: "user kicked from organization",
+    });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     return response.status(500).json({
       error: "server error",
     });
   }
 };
 
-export const leaveController: RequestHandler = async (request, response) => {
+export const leaveController: RequestHandler = async (
+  request,
+  response,
+) => {
   const checkInput = leaveMembership.safeParse(request.body);
-  const userid = response.locals.userid;
+  const userId = response.locals.userid;
 
   if (!checkInput.success) {
-    return response.status(400).json({ error: "invalid name or description" });
+    return response.status(400).json({
+      error: "invalid organization id",
+    });
   }
 
   const { orgId } = checkInput.data;
 
   try {
-    await pool.query(
+    const result = await pool.query(
       `
-        DELETE
-        FROM
-         membership
-        WHERE
-        user_id=$1 and org_id=$2
-        `,
-      [userid, orgId],
+      DELETE FROM membership
+      WHERE user_id = $1
+        AND org_id = $2
+      `,
+      [userId, orgId],
     );
+
+    if (!result.rowCount) {
+      return response.status(404).json({
+        error: "you are not a member of this organization",
+      });
+    }
 
     broadcastToOrgAdmins(
       orgId,
-      JSON.stringify({ event: "membership:updated" }),
+      JSON.stringify({
+        event: "membership:updated",
+      }),
     );
 
-    return response.status(200).json({ message: "left the org" });
+    sendToUser(
+      userId,
+      JSON.stringify({
+        event: "membership:removed",
+        orgId,
+      }),
+    );
+
+    return response.status(200).json({
+      message: "left the org",
+    });
   } catch (error) {
-    console.log(error);
+    console.error(error);
+
     return response.status(500).json({
       error: "server error",
     });
