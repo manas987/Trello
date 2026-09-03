@@ -6,6 +6,10 @@ import {
   acceptInvite,
   deleteInvite,
 } from "./schema";
+import {
+  broadcastToOrgAdmins,
+  sendToUser,
+} from "../../websocket/rooms/roomManager";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createInvite.safeParse(request.body);
@@ -17,7 +21,7 @@ export const createController: RequestHandler = async (request, response) => {
     });
   }
 
-  const { orgid, userEmail } = checkInput.data;
+  const { orgid, userEmail, role } = checkInput.data;
 
   try {
     const admin = await pool.query(
@@ -72,11 +76,18 @@ export const createController: RequestHandler = async (request, response) => {
 
     await pool.query(
       `
-      INSERT INTO invites (org_id, user_id)
-      VALUES ($1, $2)
+      INSERT INTO invites (org_id, user_id, role)
+      VALUES ($1, $2, $3)
       `,
-      [orgid, invitedUserId],
+      [orgid, invitedUserId, role],
     );
+
+    broadcastToOrgAdmins(
+      orgid,
+      JSON.stringify({ event: "invite:updated", orgid }),
+    );
+
+    sendToUser(invitedUserId, JSON.stringify({ event: "invite:recieved" }));
 
     return response.status(201).json({
       message: "invite created",
@@ -200,7 +211,9 @@ export const acceptController: RequestHandler = async (request, response) => {
 
     const invite = await client.query(
       `
-      SELECT org_id
+      SELECT 
+        org_id,
+        role
       FROM invites
       WHERE id = $1
         AND user_id = $2
@@ -217,13 +230,14 @@ export const acceptController: RequestHandler = async (request, response) => {
     }
 
     const orgId = invite.rows[0].org_id;
+    const role = invite.rows[0].role;
 
     await client.query(
       `
       INSERT INTO membership (user_id, org_id, role)
-      VALUES ($1, $2, 'member')
+      VALUES ($1, $2, $3)
       `,
-      [userId, orgId],
+      [userId, orgId, role],
     );
 
     await client.query(
@@ -235,6 +249,11 @@ export const acceptController: RequestHandler = async (request, response) => {
     );
 
     await client.query("COMMIT");
+
+    broadcastToOrgAdmins(
+      orgId,
+      JSON.stringify({ event: "invite:updated", orgId }),
+    );
 
     return response.status(200).json({
       message: "invite accepted",
@@ -268,7 +287,7 @@ export const deleteController: RequestHandler = async (request, response) => {
     const invite = await pool.query(
       `
   SELECT
-    1
+    invites.org_id
   FROM invites
   LEFT JOIN membership
     ON membership.org_id = invites.org_id
@@ -296,6 +315,13 @@ export const deleteController: RequestHandler = async (request, response) => {
       WHERE id = $1
       `,
       [inviteId],
+    );
+
+    const orgId = invite.rows[0].org_id;
+
+    broadcastToOrgAdmins(
+      orgId,
+      JSON.stringify({ event: "invite:updated", orgId }),
     );
 
     return response.status(200).json({

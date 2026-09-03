@@ -7,6 +7,7 @@ import {
   readIssue,
   updateIssue,
 } from "./schema";
+import { broadcastToBoard } from "../../websocket/rooms/roomManager";
 
 export const createController: RequestHandler = async (request, response) => {
   const checkInput = createIssue.safeParse(request.body);
@@ -28,7 +29,8 @@ export const createController: RequestHandler = async (request, response) => {
     const userOrg = await client.query(
       `
       SELECT
-        boards.orginisationId
+        boards.orginisationId,
+        boards.id
       FROM sections
       JOIN boards
         ON boards.id = sections.boardId
@@ -93,6 +95,11 @@ export const createController: RequestHandler = async (request, response) => {
     }
 
     await client.query("COMMIT");
+
+    broadcastToBoard(
+      userOrg.rows[0].id,
+      JSON.stringify({ event: "issues:updated", sectionId }),
+    );
 
     return response.status(201).json({
       message: "issue created",
@@ -208,7 +215,9 @@ export const updateController: RequestHandler = async (request, response) => {
       `
       SELECT
         membership.role,
-        membership.org_id
+        membership.org_id,
+        boards.id,
+        section.id as sectionId
       FROM
         issues
       JOIN
@@ -304,6 +313,14 @@ export const updateController: RequestHandler = async (request, response) => {
       }
 
       await client.query("COMMIT");
+
+      broadcastToBoard(
+        userOrg.rows[0].id,
+        JSON.stringify({
+          event: "issues:updated",
+          sectionid: userOrg.rows[0].sectionId,
+        }),
+      );
 
       return response.status(200).json({
         message: "issue updated",
@@ -414,6 +431,15 @@ export const moveController: RequestHandler = async (request, response) => {
       [newSectionId, issueId],
     );
 
+    broadcastToBoard(
+      row.current_board,
+      JSON.stringify({
+        event: "issues:moved",
+        sectionidOne: row.current_section,
+        sectionidTwo: newSectionId,
+      }),
+    );
+
     return response.status(200).json({ message: "issue Moved" });
   } catch (error) {
     console.log(error);
@@ -435,7 +461,9 @@ export const deleteController: RequestHandler = async (request, response) => {
     const userOrg = await pool.query(
       `
       SELECT
-        role
+        role,
+        board.id,
+        sections.id as sectionId
       FROM
         issues
       JOIN
@@ -469,6 +497,13 @@ export const deleteController: RequestHandler = async (request, response) => {
       [Issueid],
     );
 
+    broadcastToBoard(
+      userOrg.rows[0].id,
+      JSON.stringify({
+        event: "issues:moved",
+        sectionid: userOrg.rows[0].sectionId,
+      }),
+    );
     return response.status(200).json({ message: "issue deleted" });
   } catch (error) {
     console.log(error);

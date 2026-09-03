@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 export const createInvite = z.object({
-  orgid: z.int().positive,
+  orgid: z.int().positive(),
   userEmail: z.email(),
+  role: z.enum(["admin", "member"]),
 });
 
 export const readSentInvite = z.object({

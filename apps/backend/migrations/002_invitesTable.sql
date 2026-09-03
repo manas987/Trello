@@ -2,4 +2,5 @@ CREATE TABLE invites(
     id SERIAL PRIMARY KEY,
     org_id INT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+    role user_role NOT NULL DEFAULT 'member',
 )
