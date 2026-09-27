@@ -35,7 +35,7 @@ CREATE TABLE issues(
     id SERIAL PRIMARY KEY,
     title TEXT ,
     description TEXT ,
-    sectionId INT NOT NULL REFERENCES sections(id) ON DELETE RESTRICT
+    sectionId INT NOT NULL REFERENCES sections(id) ON DELETE CASCADE
 );
 
 CREATE TABLE issues_mapping(

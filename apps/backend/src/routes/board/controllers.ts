@@ -27,7 +27,7 @@ export const createController: RequestHandler = async (request, response) => {
     );
 
     if (!userOrg.rowCount || userOrg.rows[0].role != "admin")
-      return response.status(400).json({ error: "no permission" });
+      return response.status(403).json({ error: "no permission" });
 
     await pool.query(
       `
@@ -38,7 +38,7 @@ export const createController: RequestHandler = async (request, response) => {
     );
     broadcastToOrg(
       organizationId,
-      JSON.stringify({ event: "board:updated", organizationId }),
+      JSON.stringify({ event: "board:updated", orgId: organizationId }),
     );
 
     return response.status(201).json({
@@ -48,7 +48,7 @@ export const createController: RequestHandler = async (request, response) => {
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   }
 };
@@ -77,7 +77,7 @@ export const readController: RequestHandler = async (request, response) => {
     );
 
     if (!userOrg.rowCount)
-      return response.status(400).json({ error: "no permission" });
+      return response.status(403).json({ error: "no permission" });
 
     const boards = await pool.query(
       `
@@ -91,7 +91,7 @@ export const readController: RequestHandler = async (request, response) => {
       [orgid],
     );
 
-    return response.status(200).json({ orgs: boards.rows });
+    return response.status(200).json({ boards: boards.rows });
   } catch (error) {
     console.log(error);
     return response.status(500).json({ error: "internal server error" });
@@ -130,7 +130,7 @@ export const updateController: RequestHandler = async (request, response) => {
     );
 
     if (!userOrg.rowCount || userOrg.rows[0].role != "admin")
-      return response.status(400).json({ error: "no permission" });
+      return response.status(403).json({ error: "no permission" });
 
     await pool.query(
       `
@@ -147,7 +147,7 @@ export const updateController: RequestHandler = async (request, response) => {
       userOrg.rows[0].id,
       JSON.stringify({
         event: "board:updated",
-        organizationId: userOrg.rows[0].id,
+        orgId: userOrg.rows[0].id,
       }),
     );
 
@@ -190,7 +190,7 @@ export const deleteController: RequestHandler = async (request, response) => {
     );
 
     if (!userOrg.rowCount || userOrg.rows[0].role != "admin")
-      return response.status(400).json({ error: "no permission" });
+      return response.status(403).json({ error: "no permission" });
 
     await pool.query(
       `
@@ -207,7 +207,7 @@ export const deleteController: RequestHandler = async (request, response) => {
       userOrg.rows[0].id,
       JSON.stringify({
         event: "board:updated",
-        organizationId: userOrg.rows[0].id,
+        orgId: userOrg.rows[0].id,
       }),
     );
 

@@ -17,28 +17,28 @@ export function router(ws: WebSocket, userId: number, data: RawData) {
   switch (message.type) {
     case "join:Org":
       if (!message.orgId) {
-        return ws.send("invalid inputs");
+        return ws.send(JSON.stringify({ error: "invalid inputs" }));
       }
       joinOrg(message.orgId, ws, userId);
       break;
 
     case "leave:Org":
       if (!message.orgId) {
-        return ws.send("invalid inputs");
+        return ws.send(JSON.stringify({ error: "invalid inputs" }));
       }
       leaveOrg(ws);
       break;
 
     case "join:Board":
       if (!message.boardId) {
-        return ws.send("invalid inputs");
+        return ws.send(JSON.stringify({ error: "invalid inputs" }));
       }
-      joinBoard(message.boardId, ws);
+      joinBoard(message.boardId, ws, userId);
       break;
 
     case "leave:Board":
       if (!message.boardId) {
-        return ws.send("invalid inputs");
+        return ws.send(JSON.stringify({ error: "invalid inputs" }));
       }
       leaveBoard(ws);
       break;

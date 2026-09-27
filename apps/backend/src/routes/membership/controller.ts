@@ -62,7 +62,7 @@ export const readController: RequestHandler = async (request, response) => {
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   }
 };
@@ -204,7 +204,7 @@ export const changeRoleController: RequestHandler = async (
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   } finally {
     client.release();
@@ -333,7 +333,7 @@ export const kickController: RequestHandler = async (request, response) => {
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   } finally {
     client.release();
@@ -445,7 +445,7 @@ export const leaveController: RequestHandler = async (
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   } finally {
     client.release();

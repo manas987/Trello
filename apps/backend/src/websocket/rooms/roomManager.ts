@@ -101,7 +101,23 @@ export function leaveOrg(ws: WebSocket) {
   }
 }
 
-export function joinBoard(boardId: number, ws: WebSocket) {
+export async function joinBoard(
+  boardId: number,
+  ws: WebSocket,
+  userId: number,
+) {
+  const member = await pool.query(
+    `
+    SELECT 1
+    FROM boards
+    JOIN membership ON membership.org_id = boards.orginisationId
+    WHERE membership.user_id = $1 AND boards.id = $2
+    `,
+    [userId, boardId],
+  );
+
+  if (!member.rowCount) return;
+
   leaveBoard(ws);
 
   const temp = socketState.get(ws);

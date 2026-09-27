@@ -81,9 +81,9 @@ export const createController: RequestHandler = async (request, response) => {
       FROM
        invites
       WHERE
-       org_id=$1,user_id=$2
+       org_id=$1 AND user_id=$2
       `,
-      [orgid, userId],
+      [orgid, invitedUserId],
     );
 
     if (existingInvites.rowCount) {
@@ -102,10 +102,10 @@ export const createController: RequestHandler = async (request, response) => {
 
     broadcastToOrgAdmins(
       orgid,
-      JSON.stringify({ event: "invite:updated", orgid }),
+      JSON.stringify({ event: "invite:updated", orgId: orgid }),
     );
 
-    sendToUser(invitedUserId, JSON.stringify({ event: "invite:recieved" }));
+    sendToUser(invitedUserId, JSON.stringify({ event: "invite:received" }));
 
     return response.status(201).json({
       message: "invite created",

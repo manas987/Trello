@@ -36,7 +36,7 @@ export const signupController: RequestHandler = async (request, response) => {
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   }
 };
@@ -56,8 +56,8 @@ export const signinController: RequestHandler = async (request, response) => {
 
     if (!userData.rowCount)
       return response
-        .status(409)
-        .json({ error: "user does not exist pls signup" });
+        .status(401)
+        .json({ error: "wrong email or password" });
 
     const checkPassword = await bcrypt.compare(
       password,
@@ -65,7 +65,7 @@ export const signinController: RequestHandler = async (request, response) => {
     );
 
     if (!checkPassword) {
-      return response.status(400).json({ error: "wrong password" });
+      return response.status(401).json({ error: "wrong email or password" });
     }
 
     const token = jwt.sign(
@@ -78,7 +78,7 @@ export const signinController: RequestHandler = async (request, response) => {
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   }
 };

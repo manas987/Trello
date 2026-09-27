@@ -28,7 +28,7 @@ export function Auth() {
 
     const data = await response.json();
 
-    localStorage.setItem("token", data);
+    localStorage.setItem("token", data.token);
 
     navigate("/dashboard");
   }

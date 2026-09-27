@@ -98,7 +98,7 @@ export const createController: RequestHandler = async (request, response) => {
 
     broadcastToBoard(
       userOrg.rows[0].id,
-      JSON.stringify({ event: "issues:updated", sectionId }),
+      JSON.stringify({ event: "issue:updated", sectionId }),
     );
 
     return response.status(201).json({
@@ -217,7 +217,7 @@ export const updateController: RequestHandler = async (request, response) => {
         membership.role,
         membership.org_id,
         boards.id,
-        section.id as sectionId
+        sections.id as sectionId
       FROM
         issues
       JOIN
@@ -317,8 +317,8 @@ export const updateController: RequestHandler = async (request, response) => {
       broadcastToBoard(
         userOrg.rows[0].id,
         JSON.stringify({
-          event: "issues:updated",
-          sectionid: userOrg.rows[0].sectionId,
+          event: "issue:updated",
+          sectionId: userOrg.rows[0].sectionid,
         }),
       );
 
@@ -434,9 +434,9 @@ export const moveController: RequestHandler = async (request, response) => {
     broadcastToBoard(
       row.current_board,
       JSON.stringify({
-        event: "issues:moved",
-        sectionidOne: row.current_section,
-        sectionidTwo: newSectionId,
+        event: "issue:moved",
+        fromSectionId: row.current_section,
+        toSectionId: newSectionId,
       }),
     );
 
@@ -462,7 +462,7 @@ export const deleteController: RequestHandler = async (request, response) => {
       `
       SELECT
         role,
-        board.id,
+        boards.id,
         sections.id as sectionId
       FROM
         issues
@@ -500,8 +500,8 @@ export const deleteController: RequestHandler = async (request, response) => {
     broadcastToBoard(
       userOrg.rows[0].id,
       JSON.stringify({
-        event: "issues:moved",
-        sectionid: userOrg.rows[0].sectionId,
+        event: "issue:deleted",
+        sectionId: userOrg.rows[0].sectionid,
       }),
     );
     return response.status(200).json({ message: "issue deleted" });

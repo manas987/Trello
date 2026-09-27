@@ -10,13 +10,13 @@ export function websocketServer(server: Server) {
   wss.on("connection", async (ws, request) => {
     const userid = await authWs(ws, request);
     addUserSocket(userid, ws);
-    ws.send("connected");
+    ws.send(JSON.stringify({ event: "connected" }));
     ws.on("message", (data) => {
       router(ws, userid, data);
     });
     ws.on("close", () => {
       removeSocket(ws);
-      ws.send("connection closed");
+      ws.send(JSON.stringify({ event: "connection closed" }));
     });
     ws.on("error", (error) => {
       console.log(error);

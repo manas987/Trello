@@ -43,7 +43,7 @@ export const createController: RequestHandler = async (request, response) => {
     console.error(error);
 
     return response.status(500).json({
-      error: "server error",
+      error: "internal server error",
     });
   } finally {
     client.release();
@@ -122,7 +122,7 @@ export const updateController: RequestHandler = async (request, response) => {
     broadcastToOrg(
       orgid,
       JSON.stringify({
-        event: "org:changed",
+        event: "org:updated",
       }),
     );
 
@@ -135,7 +135,7 @@ export const updateController: RequestHandler = async (request, response) => {
 
 export const deleteController: RequestHandler = async (request, response) => {
   const checkInput = deleteOrg.safeParse(request.body);
-  const userId = response.locals.userId;
+  const userId = response.locals.userid;
 
   if (!checkInput.success)
     return response.status(400).json({ error: "invalid org id" });
