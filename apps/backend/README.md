@@ -1,15 +1,12 @@
 # backend
 
-To install dependencies:
+Express API and websocket server for Blueline. Setup, endpoints and the
+websocket protocol are documented in the [root README](../../README.md).
 
 ```bash
 bun install
+bun run migrate
+bun run dev
 ```
 
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.3.9. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Needs `PORT`, `DATABASE_URL` and `JWT_SECRET` in `apps/backend/.env`.

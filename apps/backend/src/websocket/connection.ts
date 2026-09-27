@@ -8,15 +8,21 @@ export function websocketServer(server: Server) {
   const wss = new WebSocketServer({ server });
 
   wss.on("connection", async (ws, request) => {
-    const userid = await authWs(ws, request);
-    addUserSocket(userid, ws);
+    let userid: number;
+
+    try {
+      userid = await authWs(ws, request);
+    } catch {
+      return;
+    }
+
+    await addUserSocket(userid, ws);
     ws.send(JSON.stringify({ event: "connected" }));
     ws.on("message", (data) => {
       router(ws, userid, data);
     });
     ws.on("close", () => {
       removeSocket(ws);
-      ws.send(JSON.stringify({ event: "connection closed" }));
     });
     ws.on("error", (error) => {
       console.log(error);

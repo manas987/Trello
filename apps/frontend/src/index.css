@@ -1,1 +1,168 @@
 @import "tailwindcss";
+@theme {
+  --color-field: #123a63;
+  --color-sink: #0b2542;
+  --color-raise: #1b4a7a;
+  --color-line: #e9f1f8;
+  --color-faint: #a7c3db;
+  --color-rule: #3f6b98;
+  --color-redline: #ff7a5c;
+  --color-redink: #ffa48f;
+  --color-stamp: #f2b544;
+
+  --font-sans:
+    "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --ease-draft: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@utility pen-0 { border-width: 1px; }
+@utility pen-1 { border-width: 1.5px; }
+@utility pen-2 { border-width: 2px; }
+@utility pen-3 { border-width: 3px; }
+@utility pen-4 { border-width: 4px; }
+@utility pen-b-0 { border-bottom-width: 1px; }
+@utility pen-b-1 { border-bottom-width: 1.5px; }
+@utility pen-b-2 { border-bottom-width: 2px; }
+@utility pen-b-3 { border-bottom-width: 3px; }
+@utility pen-b-4 { border-bottom-width: 4px; }
+@utility pen-t-0 { border-top-width: 1px; }
+@utility pen-t-2 { border-top-width: 2px; }
+@utility pen-r-0 { border-right-width: 1px; }
+@utility pen-r-2 { border-right-width: 2px; }
+
+@utility stencil {
+  text-transform: uppercase;
+  font-stretch: 84%;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+@utility stencil-wide {
+  text-transform: uppercase;
+  font-stretch: 112%;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-rule) 0 1px,
+    transparent 1px var(--hatch-gap, 7px)
+  );
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --grid: 28px;
+  }
+
+  html {
+    background: var(--color-field);
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-field);
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--color-rule) 26%, transparent) 0 1px,
+        transparent 1px var(--grid)
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-rule) 26%, transparent) 0 1px,
+        transparent 1px var(--grid)
+      );
+    background-size: var(--grid) var(--grid);
+    color: var(--color-line);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: #2f7bc0;
+    color: var(--color-line);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-stamp);
+  }
+
+  ::placeholder {
+    color: var(--color-faint);
+    opacity: 1;
+    font-stretch: 92%;
+  }
+
+  a {
+    text-underline-offset: 0.22em;
+    text-decoration-thickness: 1px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-line);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-color: var(--color-rule) transparent;
+    scrollbar-width: thin;
+  }
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--color-sink) 50%, transparent);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-rule);
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-faint);
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.5) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

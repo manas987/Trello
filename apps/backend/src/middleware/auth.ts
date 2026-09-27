@@ -5,9 +5,7 @@ import { pool } from "../../migrations/db";
 import type { IncomingMessage } from "http";
 import type { WebSocket } from "ws";
 
-async function auth(request: IncomingMessage): Promise<number | null> {
-  const token = request.headers.authorization;
-
+async function auth(token: string | null | undefined): Promise<number | null> {
   if (!token) {
     return null;
   }
@@ -40,7 +38,8 @@ export async function authWs(
   ws: WebSocket,
   request: IncomingMessage,
 ): Promise<number> {
-  const userId = await auth(request);
+  const token = new URLSearchParams(request.url?.split("?")[1]).get("token");
+  const userId = await auth(token);
 
   if (!userId) {
     ws.close(1008, "Unauthorized");
@@ -55,7 +54,7 @@ export const authMiddleware: RequestHandler = async (
   response,
   nextfunction,
 ) => {
-  const userId = await auth(request);
+  const userId = await auth(request.headers.authorization);
 
   if (!userId) {
     return response.status(401).json({
