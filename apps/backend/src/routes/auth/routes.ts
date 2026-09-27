@@ -3,6 +3,6 @@ import { signinController, signupController } from "./controllers";
 
 export const authRouter = Router();
 
-authRouter.use("/signup", signupController);
+authRouter.post("/signup", signupController);
 
-authRouter.use("/signin", signinController);
+authRouter.get("/signin", signinController);
