@@ -154,7 +154,7 @@ export const readReceivedController: RequestHandler = async (
 };
 
 export const readSentController: RequestHandler = async (request, response) => {
-  const checkInput = readSentInvite.safeParse(request.body);
+  const checkInput = readSentInvite.safeParse(request.query);
   const userId = response.locals.userid;
 
   if (!checkInput.success) {

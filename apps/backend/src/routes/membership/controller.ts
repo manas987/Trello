@@ -12,7 +12,7 @@ import {
 } from "../../websocket/rooms/roomManager";
 
 export const readController: RequestHandler = async (request, response) => {
-  const checkInput = readMembership.safeParse(request.body);
+  const checkInput = readMembership.safeParse(request.query);
   const userId = response.locals.userid;
 
   if (!checkInput.success) {

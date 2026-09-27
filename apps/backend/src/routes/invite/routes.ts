@@ -6,15 +6,16 @@ import {
   readSentController,
   acceptController,
 } from "./controller";
+import { authMiddleware } from "../../middleware/auth";
 
 export const inviteRouter = Router();
 
-inviteRouter.post("/create", createController);
+inviteRouter.post("/create", authMiddleware, createController);
 
-inviteRouter.get("/received", readReceivedController);
+inviteRouter.get("/received", authMiddleware, readReceivedController);
 
-inviteRouter.get("/sent", readSentController);
+inviteRouter.get("/sent", authMiddleware, readSentController);
 
-inviteRouter.post("/accept", acceptController);
+inviteRouter.post("/accept", authMiddleware, acceptController);
 
-inviteRouter.delete("/delete", deleteController);
+inviteRouter.delete("/delete", authMiddleware, deleteController);

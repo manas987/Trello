@@ -8,7 +8,7 @@ export const createIssue = z.object({
 });
 
 export const readIssue = z.object({
-  sectionid: z.int().positive(),
+  sectionid: z.coerce.number().int().positive(),
 });
 
 export const updateIssue = z

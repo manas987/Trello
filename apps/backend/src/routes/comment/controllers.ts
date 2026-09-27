@@ -72,7 +72,7 @@ export const createController: RequestHandler = async (request, response) => {
 };
 
 export const readController: RequestHandler = async (request, response) => {
-  const checkInput = readComment.safeParse(request.body);
+  const checkInput = readComment.safeParse(request.query);
   const userId = response.locals.userid;
 
   if (!checkInput.success) {

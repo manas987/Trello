@@ -1,7 +1,7 @@
 import { positive, z } from "zod";
 
 export const readMembership = z.object({
-  orgid: z.int().positive(),
+  orgid: z.coerce.number().int().positive(),
 });
 
 export const changeMembership = z.object({

@@ -79,16 +79,17 @@ async function auth(request: IncomingMessage): Promise<number | null>
 
 On success `authMiddleware` sets **`response.locals.userid`** (all lowercase) and calls
 `next()`. Every controller reads that exact key — one place gets the casing wrong, see
-[KNOWN-ISSUES](./KNOWN-ISSUES.md#b6).
+[KNOWN-ISSUES](./KNOWN-ISSUES.md#b5).
 
 Tokens are signed in `routes/auth/controllers.ts` with `jwt.sign({ userId }, secret)` —
 **no `expiresIn`**, so sessions never expire and there is no refresh or revocation path
 beyond deleting the user.
 
-### Routers that are *not* protected
+### Coverage
 
-`commentRouter` and `inviteRouter` are mounted without `authMiddleware`. Details and
-consequences in [KNOWN-ISSUES](./KNOWN-ISSUES.md#b1).
+All eight routers apply `authMiddleware` to every route. `commentRouter` and
+`inviteRouter` previously did not — see [KNOWN-ISSUES b1](./KNOWN-ISSUES.md#b1), fixed
+2026-09-28.
 
 ---
 
@@ -175,7 +176,7 @@ Notes on the schema as written:
 * `issues.sectionId` is `ON DELETE RESTRICT`, so a section holding issues cannot be
   deleted, and because `orgs → boards → sections` cascade into that restriction, an org or
   board with any issue in it cannot be deleted either. See
-  [KNOWN-ISSUES](./KNOWN-ISSUES.md#b7).
+  [KNOWN-ISSUES](./KNOWN-ISSUES.md#b6).
 * `issues_mapping.userid` is `ON DELETE RESTRICT`, so an assigned user can never be
   deleted. There is currently no user-deletion endpoint, so this is latent.
 * `comments.userId` is `ON DELETE SET NULL`, so comments survive their author as orphans.
@@ -197,10 +198,13 @@ invites (id SERIAL PK,
          role user_role NOT NULL DEFAULT 'member')
 ```
 
-**This file does not parse** — a missing comma and a trailing comma. See
-[KNOWN-ISSUES](./KNOWN-ISSUES.md#b2). It also lacks a `UNIQUE (org_id, user_id)`
-constraint, which is what the duplicate-invite check in the controller is trying to
-emulate in application code.
+`UNIQUE (org_id, user_id)` is what stops the same person being invited to one
+organization twice — the check the controller attempts in application code
+([b9](./KNOWN-ISSUES.md#b9)) is broken, so this constraint is the only thing enforcing it.
+
+This file did not parse until 2026-09-28 (a missing comma and a trailing comma), so the
+`invites` table never existed. See [KNOWN-ISSUES b2](./KNOWN-ISSUES.md#b2). It has to be
+applied with `bun run migrate` before any invite endpoint will work.
 
 ### Migration runner
 
@@ -221,9 +225,10 @@ the pool lives under `migrations/` and is imported by every controller via
 Conventions used below:
 
 * **Auth** — `yes` means `authMiddleware` runs before the controller.
-* All request payloads are read from **`request.body`**, including on `GET` and `DELETE`.
-  See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b4) for why the `GET` ones are unreachable from a
-  browser.
+* The six `GET` reads take **query parameters**; `POST`, `PATCH` and `DELETE` take a JSON
+  **body**. The reads used to take a body too, which made them unreachable from a browser
+  — see [KNOWN-ISSUES b3](./KNOWN-ISSUES.md#b3), fixed 2026-09-28. Their zod schemas use
+  `z.coerce.number().int().positive()`, since query values arrive as strings.
 * Every controller catches its own errors and returns `500 { error: "server error" }` or
   `{ error: "internal server error" }` (the wording varies by module).
 * `z.int().positive()` is written throughout for id fields.
@@ -239,14 +244,16 @@ Conventions used below:
 `password` at least 8 characters.
 
 **signup** — rejects with `400` on schema failure, `409` if the email already exists,
-otherwise hashes with `bcrypt.hash(password, 12)` and inserts.
-⚠️ The handler contains a stray identifier that throws before the insert is ever reached;
-signup always returns `500`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b3).
+otherwise hashes with `bcrypt.hash(password, 12)` and inserts. Note that the duplicate
+check and the insert are two separate statements with no transaction and no reliance on
+the `users.email` unique constraint, so two concurrent signups for the same address race:
+one succeeds and the other surfaces the constraint violation as a `500` rather than a
+`409`.
 
 **signin** — `400` on schema failure, `409` if the email is unknown (note: `409`, not
 `404`), `400 { error: "wrong password" }` on mismatch, otherwise returns a JWT.
 ⚠️ Registered as `GET`, which the frontend does not call and a browser cannot send a body
-to. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b5).
+to. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b4).
 
 The error messages distinguish "user does not exist" from "wrong password", which lets an
 unauthenticated caller enumerate registered email addresses.
@@ -267,14 +274,14 @@ unauthenticated caller enumerate registered email addresses.
   `COALESCE($1, name)` so omitted fields keep their value. Broadcasts `org:changed`.
 * `delete` broadcasts `org:updated` (different event name for a delete).
   ⚠️ `delete` reads `response.locals.userId` instead of `userid` and therefore always
-  returns `403`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b6).
+  returns `403`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b5).
 
 ### 5.3 `/board`
 
 | Method | Path | Auth | Body | Role | Success |
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/create` | yes | `{ name, organizationId }` | admin | `201 { message: "board created" }` |
-| `GET` | `/read` | yes | `{ orgid }` | member | `200 { orgs: [...] }` |
+| `GET` | `/read` | yes | `?orgid=` | member | `200 { orgs: [...] }` |
 | `PATCH` | `/update` | yes | `{ boardid, name }` | admin | `200 { message: "board updated" }` |
 | `DELETE` | `/delete` | yes | `{ boardid }` | admin | `200 { message: "board deleted" }` |
 
@@ -292,7 +299,7 @@ unauthenticated caller enumerate registered email addresses.
 | Method | Path | Auth | Body | Role | Success |
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/create` | yes | `{ name, boardId }` | admin | `201 { message: "section created" }` |
-| `GET` | `/read` | yes | `{ boardid }` | member | `200 { sections: [{ id, title, boardid }] }` |
+| `GET` | `/read` | yes | `?boardid=` | member | `200 { sections: [{ id, title, boardid }] }` |
 | `PATCH` | `/update` | yes | `{ sectionid, name }` | admin | `200 { message: "section updated" }` |
 | `DELETE` | `/delete` | yes | `{ sectionid }` | admin | `200 { message: "section deleted" }` |
 
@@ -300,7 +307,7 @@ unauthenticated caller enumerate registered email addresses.
   `section:updated` — two names for one concern.
 * `delete` will fail with a `500` (foreign-key violation) whenever the section still holds
   issues, because of `issues.sectionId ON DELETE RESTRICT`.
-  See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b7).
+  See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b6).
 * `sections.title` is nullable in SQL but `createSection` requires a non-empty `name`.
 
 ### 5.5 `/issue`
@@ -308,7 +315,7 @@ unauthenticated caller enumerate registered email addresses.
 | Method | Path | Auth | Body | Role | Success |
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/create` | yes | `{ name, description?, sectionId, assignees?: number[] }` | admin | `201 { message: "issue created" }` |
-| `GET` | `/read` | yes | `{ sectionid }` | member | `200 { issues: [...] }` |
+| `GET` | `/read` | yes | `?sectionid=` | member | `200 { issues: [...] }` |
 | `PATCH` | `/update` | yes | `{ Issueid, name?, description?, assignees? }` | admin | `200 { message: "issue updated" }` |
 | `DELETE` | `/delete` | yes | `{ Issueid }` | admin | `200 { message: "issue deleted" }` |
 
@@ -343,27 +350,27 @@ transaction `COALESCE`-updates title/description and, when `assignees` is presen
 deletes all `issues_mapping` rows for the issue and re-inserts the (re-validated) set.
 Passing `assignees: []` therefore clears all assignees.
 ⚠️ The permission query references a table alias `section` that does not exist, so this
-endpoint always returns `500`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b8).
+endpoint always returns `500`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b7).
 
 **delete** broadcasts `issues:moved` — the wrong event name for a deletion.
 ⚠️ Its permission query references `board.id` where the table is `boards`, so this
-endpoint also always returns `500`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b8).
+endpoint also always returns `500`. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b7).
 
 **move** — `moveController` and the `moveIssue` schema (`{ newSectionId, issueId }`) are
 fully implemented: admin check, then a query that resolves the current and target
 section's `boardId`, rejecting a cross-board move (`403`), a no-op move (`400`), and a
 missing issue/section (`404`); on success it updates `issues.sectionId` and broadcasts
 `issues:moved` with both section ids. **It is never registered on the router**, so there
-is no drag-and-drop endpoint. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b9).
+is no drag-and-drop endpoint. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b8).
 
 ### 5.6 `/comment`
 
 | Method | Path | Auth | Body | Role | Success |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/create` | **no** | `{ issueId, comment }` | member | `201 { message: "comment created" }` |
-| `GET` | `/read` | **no** | `{ issueId }` | member | `200 { comments: [{ id, comment, userid }] }` |
-| `PATCH` | `/update` | **no** | `{ commentId, comment }` | author or admin | `200 { message: "comment updated" }` |
-| `DELETE` | `/delete` | **no** | `{ commentId }` | author or admin | `200 { message: "comment deleted" }` |
+| `POST` | `/create` | yes | `{ issueId, comment }` | member | `201 { message: "comment created" }` |
+| `GET` | `/read` | yes | `?issueId=` | member | `200 { comments: [{ id, comment, userid }] }` |
+| `PATCH` | `/update` | yes | `{ commentId, comment }` | author or admin | `200 { message: "comment updated" }` |
+| `DELETE` | `/delete` | yes | `{ commentId }` | author or admin | `200 { message: "comment deleted" }` |
 
 Comments are **flat** — the `comments` table has no parent pointer, matching the
 "comments non recursive" note in the design wireframe.
@@ -378,14 +385,15 @@ the comment does not exist or the caller is not in its org, `403` if the caller 
 the author nor an admin. Both broadcast `comment:updated` with `{ issueId }` to the board
 room.
 
-⚠️ None of these routes are wrapped in `authMiddleware`, so every one of them is
-non-functional. See [KNOWN-ISSUES](./KNOWN-ISSUES.md#b1).
+These four routes were unprotected until 2026-09-28, which made all of them
+non-functional; they now run behind `authMiddleware` like the rest.
+See [KNOWN-ISSUES b1](./KNOWN-ISSUES.md#b1).
 
 ### 5.7 `/membership`
 
 | Method | Path | Auth | Body | Role | Success |
 | --- | --- | --- | --- | --- | --- |
-| `GET` | `/read` | yes | `{ orgid }` | member | `200 { members: [{ id, email, role }] }` |
+| `GET` | `/read` | yes | `?orgid=` | member | `200 { members: [{ id, email, role }] }` |
 | `DELETE` | `/delete` | yes | `{ orgId }` | self | `200 { message: "left the org" }` |
 
 `DELETE /membership/delete` is the **leave-organization** endpoint — it removes the
@@ -395,7 +403,7 @@ the org's admin room and sends `membership:removed` to the leaving user's own so
 
 Note the field-name inconsistency: `read` takes `orgid`, `delete` takes `orgId`.
 
-**Implemented but unrouted** (see [KNOWN-ISSUES](./KNOWN-ISSUES.md#b9)):
+**Implemented but unrouted** (see [KNOWN-ISSUES](./KNOWN-ISSUES.md#b8)):
 
 * `changeRoleController` — `{ orgId, userId, role: 'admin' | 'member' }`. Admin-only,
   row-locked, short-circuits with `200 "user role unchanged"` when the role already
@@ -412,11 +420,11 @@ real zod v4 export, so it is dead code rather than a broken import.
 
 | Method | Path | Auth | Body | Role | Success |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/create` | **no** | `{ orgid, userEmail, role }` | admin | `201 { message: "invite created" }` |
-| `GET` | `/received` | **no** | — | self | `200 { invites: [{ id, org_id, name, description }] }` |
-| `GET` | `/sent` | **no** | `{ orgid }` | admin | `200 { invites: [{ id, user_id, email }] }` |
-| `POST` | `/accept` | **no** | `{ inviteId }` | invitee | `200 { message: "invite accepted" }` |
-| `DELETE` | `/delete` | **no** | `{ inviteId }` | admin or invitee | `200 { message: "invite deleted" }` |
+| `POST` | `/create` | yes | `{ orgid, userEmail, role }` | admin | `201 { message: "invite created" }` |
+| `GET` | `/received` | yes | — | self | `200 { invites: [{ id, org_id, name, description }] }` |
+| `GET` | `/sent` | yes | `?orgid=` | admin | `200 { invites: [{ id, user_id, email }] }` |
+| `POST` | `/accept` | yes | `{ inviteId }` | invitee | `200 { message: "invite accepted" }` |
+| `DELETE` | `/delete` | yes | `{ inviteId }` | admin or invitee | `200 { message: "invite deleted" }` |
 
 Invites target an **existing user by email** — there is no email-sending or
 signup-by-invite-link flow. `create` checks, in order: caller is an admin (`403`), the
@@ -429,18 +437,18 @@ the invite, commit, then broadcast `invite:updated` to the org's admins. There i
 "decline" endpoint — declining is `DELETE /invite/delete`, whose permission query accepts
 either an admin of the inviting org or the invitee themselves.
 
-⚠️ Three problems stack up here: the router has no auth, the duplicate-invite check is
-invalid SQL *and* checks the wrong user, and the `invites` table does not exist because
-migration 002 fails. See [KNOWN-ISSUES](./KNOWN-ISSUES.md) items
-[#b1](./KNOWN-ISSUES.md#b1), [#b2](./KNOWN-ISSUES.md#b2) and
-[#b10](./KNOWN-ISSUES.md#b10).
+⚠️ `POST /invite/create` still returns `500` on every call: its duplicate-invite check
+is invalid SQL *and* binds the wrong user id — [#b9](./KNOWN-ISSUES.md#b9). The other two
+problems that used to stack up here are resolved: the router now has auth
+([#b1](./KNOWN-ISSUES.md#b1)) and migration 002 is valid
+([#b2](./KNOWN-ISSUES.md#b2)), though it still has to be run.
 
 ---
 
 ## 6. WebSocket layer
 
 Source: `src/websocket/`. **This layer never runs** — see
-[KNOWN-ISSUES](./KNOWN-ISSUES.md#b11). Everything below describes the code as written.
+[KNOWN-ISSUES](./KNOWN-ISSUES.md#b10). Everything below describes the code as written.
 
 ```
 connection.ts   websocketServer(server) — attaches a WebSocketServer to an http.Server
@@ -504,7 +512,7 @@ each — so **one socket can be in at most one org room and one board room at a 
 
 ⚠️ `joinBoard` performs **no authorization check** — it does not take a `userId` and never
 verifies that the caller belongs to the board's organization. See
-[KNOWN-ISSUES](./KNOWN-ISSUES.md#b12).
+[KNOWN-ISSUES](./KNOWN-ISSUES.md#b11).
 
 The maps are process-local, so this design assumes a single backend instance; running
 more than one process would split the rooms.

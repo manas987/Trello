@@ -67,9 +67,10 @@ Turbo aggregates these from the root: `bun run dev`, `bun run build`, `bun run l
 `check-types` is a no-op for the frontend — neither workspace defines those scripts
 (see [KNOWN-ISSUES.md](./KNOWN-ISSUES.md) § Tooling).
 
-> ⚠️ `bun run migrate` currently fails on `002_invitesTable.sql`, and the running server
-> cannot talk to the browser app (no CORS, and the sign-in route is registered as `GET`
-> while the frontend sends `POST`). The two halves of the product do not yet connect.
+> ⚠️ The two halves of the product do not yet connect: the server sends no CORS headers
+> and registers sign-in as `GET` while the frontend sends `POST`. Migration `002` was
+> invalid until 2026-09-28 — it now parses, but `bun run migrate` still has to be run
+> before the invite feature has a table to write to.
 > See [KNOWN-ISSUES.md](./KNOWN-ISSUES.md).
 
 ## Domain model
@@ -113,7 +114,7 @@ Browser ──HTTP──> express.json() ──> router.ts ──> <resource>Rou
 
 The WebSocket half of that diagram is written but never started — `websocketServer()` in
 `src/websocket/connection.ts` is exported and never called, so all `broadcast*` calls are
-no-ops against empty maps. See [BACKEND.md § WebSocket layer](./BACKEND.md#websocket-layer).
+no-ops against empty maps. See [BACKEND.md § WebSocket layer](./BACKEND.md#6-websocket-layer).
 
 ## Intended UI (from the design wireframe)
 

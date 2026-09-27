@@ -5,13 +5,14 @@ import {
   readController,
   updateController,
 } from "./controllers";
+import { authMiddleware } from "../../middleware/auth";
 
 export const commentRouter = Router();
 
-commentRouter.post("/create", createController);
+commentRouter.post("/create", authMiddleware, createController);
 
-commentRouter.get("/read", readController);
+commentRouter.get("/read", authMiddleware, readController);
 
-commentRouter.patch("/update", updateController);
+commentRouter.patch("/update", authMiddleware, updateController);
 
-commentRouter.delete("/delete", deleteController);
+commentRouter.delete("/delete", authMiddleware, deleteController);

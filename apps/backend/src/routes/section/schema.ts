@@ -6,7 +6,7 @@ export const createSection = z.object({
 });
 
 export const readSection = z.object({
-  boardid: z.int().positive(),
+  boardid: z.coerce.number().int().positive(),
 });
 
 export const updateSection = z.object({

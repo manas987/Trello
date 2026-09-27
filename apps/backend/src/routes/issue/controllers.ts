@@ -118,7 +118,7 @@ export const createController: RequestHandler = async (request, response) => {
 };
 
 export const readController: RequestHandler = async (request, response) => {
-  const checkInput = readIssue.safeParse(request.body);
+  const checkInput = readIssue.safeParse(request.query);
   const userid = response.locals.userid;
 
   if (!checkInput.success) {

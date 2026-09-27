@@ -6,7 +6,7 @@ export const createBoard = z.object({
 });
 
 export const readBoard = z.object({
-  orgid: z.int().positive(),
+  orgid: z.coerce.number().int().positive(),
 });
 
 export const updateBoard = z.object({

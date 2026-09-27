@@ -82,7 +82,7 @@ Known problems with this page (all in [KNOWN-ISSUES.md](./KNOWN-ISSUES.md)):
 
 * The stored value is the whole response object, not `data.token`, so `localStorage`
   ends up holding the string `"[object Object]"` — [#f1](./KNOWN-ISSUES.md#f1).
-* The backend registers sign-in as `GET`, so this `POST` gets a `404` — [#b5](./KNOWN-ISSUES.md#b5).
+* The backend registers sign-in as `GET`, so this `POST` gets a `404` — [#b4](./KNOWN-ISSUES.md#b4).
 * The backend sends no CORS headers, so the browser blocks both calls anyway —
   [#f2](./KNOWN-ISSUES.md#f2).
 * The email `<input>` has a visible label but the password `<input>` does not; neither is
@@ -149,7 +149,7 @@ Two API-shape mismatches to design around when this work starts:
 * `GET /board/read`, `/section/read`, `/issue/read`, `/comment/read`, `/membership/read`
   and `/invite/sent` all expect their parameters in a **request body on a `GET`**, which
   `fetch` cannot send. They need to become query parameters or `POST` before the frontend
-  can call them — [#b4](./KNOWN-ISSUES.md#b4).
+  can call them — [#b3](./KNOWN-ISSUES.md#b3).
 * `GET /comment/read` returns only `userid` per comment, but the wireframe labels each
   comment with the author's email. Either the query needs a join or the client needs the
   org member list to resolve ids — see [BACKEND.md § /comment](./BACKEND.md#56-comment).

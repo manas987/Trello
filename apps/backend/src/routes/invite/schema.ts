@@ -7,7 +7,7 @@ export const createInvite = z.object({
 });
 
 export const readSentInvite = z.object({
-  orgid: z.int().positive(),
+  orgid: z.coerce.number().int().positive(),
 });
 
 export const acceptInvite = z.object({

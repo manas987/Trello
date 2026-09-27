@@ -6,7 +6,7 @@ export const createComment = z.object({
 });
 
 export const readComment = z.object({
-  issueId: z.int().positive(),
+  issueId: z.coerce.number().int().positive(),
 });
 
 export const updateComment = z.object({
