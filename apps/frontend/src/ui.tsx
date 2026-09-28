@@ -368,6 +368,12 @@ export function Dialog({
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const held = document.activeElement as HTMLElement | null;
+    panel.current?.querySelector<HTMLElement>("input,textarea,button")?.focus();
+    return () => held?.focus?.();
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key !== "Tab" || !panel.current) return;
@@ -386,12 +392,7 @@ export function Dialog({
       }
     };
     document.addEventListener("keydown", onKey);
-    const held = document.activeElement as HTMLElement | null;
-    panel.current?.querySelector<HTMLElement>("input,textarea,button")?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      held?.focus?.();
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
